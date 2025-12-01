@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SUBADMIN
+  MANAGER
+  STUDENT
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum HostelType {
+  SHARED
+  PRIVATE
+  SHARED_FULLROOM
+}
+
+enum HostelFor {
+  BOYS
+  GIRLS
+}
+
+enum ElectricityType {
+  INCLUDED
+  SELF
+}
+
+enum ReservationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  DISAPPROVED
+  REFUNDED
+  LEFT
+  COMPLETED
+}
+
+enum KickReason {
+  LEFT_HOSTEL
+  VIOLATED_RULES
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ReportDecision {
+  STUDENT_FAULT
+  MANAGER_FAULT
+  NONE
+}
+
+enum FeeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  passwordHash String
+  role         Role
+  isTerminated Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  studentProfile  StudentProfile?
+  managerProfile  ManagerProfile?
+  sentMessages    Message[]       @relation("SentMessages")
+  
+  @@map("users")
+}
+
+model StudentProfile {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String   @unique @db.ObjectId
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fatherName       String?
+  instituteName    String?
+  permanentAddress String?
+  phoneNumber      String?
+  whatsappNumber   String?
+  selfVerified     Boolean  @default(false)
+  currentHostelId  String?  @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  reservations          Reservation[]
+  bookings              Booking[]
+  reports               Report[]              @relation("StudentReports")
+  studentConversations  Conversation[]        @relation("StudentConversations")
+
+  @@map("student_profiles")
+}
+
+model ManagerProfile {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified  Boolean  @default(false)
+  fullName  String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  verifications        ManagerVerification[]
+  hostels              Hostel[]
+  monthlyFees          MonthlyAdminFee[]
+  reports              Report[]              @relation("ManagerReports")
+  managerConversations Conversation[]        @relation("ManagerConversations")
+
+  @@map("manager_profiles")
+}
+
+type CustomBank {
+  bankName      String
+  accountNumber String
+  iban          String?
+}
+
+model ManagerVerification {
+  id                 String             @id @default(auto()) @map("_id") @db.ObjectId
+  managerId          String             @db.ObjectId
+  manager            ManagerProfile     @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  status             VerificationStatus @default(PENDING)
+  initialHostelNames String[]
+  ownerName          String
+  city               String
+  address            String
+  buildingImages     String[]
+  hostelFor          HostelFor
+  easypaisaNumber    String?
+  jazzcashNumber     String?
+  customBanks        CustomBank[]
+  acceptedRules      Boolean            @default(false)
+  adminComment       String?
+  reviewedBy         String?            @db.ObjectId
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("manager_verifications")
+}
+
+type HostelFacilities {
+  hotColdWaterBath       Boolean         @default(false)
+  drinkingWater          Boolean         @default(false)
+  electricityBackup      Boolean         @default(false)
+  electricityType        ElectricityType @default(INCLUDED)
+  electricityRatePerUnit Float?
+  wifiEnabled            Boolean         @default(false)
+  wifiPlan               String?
+  wifiMaxUsers           Int?
+  wifiAvgSpeed           String?
+  customFacilities       String[]
+}
+
+model Hostel {
+  id                      String           @id @default(auto()) @map("_id") @db.ObjectId
+  managerId               String           @db.ObjectId
+  manager                 ManagerProfile   @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  hostelName              String
+  city                    String
+  address                 String
+  nearbyLocations         String[]
+  totalRooms              Int
+  availableRooms          Int
+  hostelType              HostelType
+  hostelFor               HostelFor
+  personsInRoom           Int
+  roomPrice               Float?
+  pricePerHeadShared      Float?
+  pricePerHeadFullRoom    Float?
+  fullRoomPriceDiscounted Float?
+  facilities              HostelFacilities
+  roomImages              String[]
+  rules                   String?
+  seoKeywords             String[]
+  averageRating           Float            @default(0)
+  reviewCount             Int              @default(0)
+  isActive                Boolean          @default(true)
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  reservations Reservation[]
+  bookings     Booking[]
+  reviews      Review[]
+  monthlyFees  MonthlyAdminFee[]
+
+  @@map("hostels")
+}
+
+model Reservation {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  studentId    String            @db.ObjectId
+  student      StudentProfile    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostelId     String            @db.ObjectId
+  hostel       Hostel            @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  status       ReservationStatus @default(PENDING)
+  message      String?
+  rejectReason String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("reservations")
+}
+
+model Booking {
+  id               String        @id @default(auto()) @map("_id") @db.ObjectId
+  studentId        String        @db.ObjectId
+  student          StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostelId         String        @db.ObjectId
+  hostel           Hostel        @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  amount           Float
+  status           BookingStatus @default(PENDING)
+  transactionImage String
+  transactionDate  String
+  transactionTime  String
+  fromAccount      String
+  toAccount        String
+  refundImage      String?
+  refundDate       String?
+  refundTime       String?
+  kickReason       KickReason?
+  kickByManagerId  String?       @db.ObjectId
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  reports Report[]
+  review  Review?
+
+  @@map("bookings")
+}
+
+model Review {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId String   @unique @db.ObjectId
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hostelId  String   @db.ObjectId
+  hostel    Hostel   @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@map("reviews")
+}
+
+model MonthlyAdminFee {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  managerId         String         @db.ObjectId
+  manager           ManagerProfile @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  hostelId          String         @db.ObjectId
+  hostel            Hostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  month             String
+  studentCount      Int
+  totalRevenue      Float
+  feeAmount         Float
+  paymentProofImage String?
+  submittedAt       DateTime?
+  status            FeeStatus      @default(PENDING)
+  reviewedBy        String?        @db.ObjectId
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([managerId, hostelId, month])
+  @@map("monthly_admin_fees")
+}
+
+model Report {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId       String          @db.ObjectId
+  booking         Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  studentId       String          @db.ObjectId
+  student         StudentProfile  @relation("StudentReports", fields: [studentId], references: [id], onDelete: Cascade)
+  managerId       String          @db.ObjectId
+  manager         ManagerProfile  @relation("ManagerReports", fields: [managerId], references: [id], onDelete: Cascade)
+  description     String
+  status          ReportStatus    @default(OPEN)
+  finalResolution String?
+  decision        ReportDecision?
+  resolvedBy      String?         @db.ObjectId
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("reports")
+}
+
+model Conversation {
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  studentId String         @db.ObjectId
+  student   StudentProfile @relation("StudentConversations", fields: [studentId], references: [id], onDelete: Cascade)
+  managerId String         @db.ObjectId
+  manager   ManagerProfile @relation("ManagerConversations", fields: [managerId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  messages Message[]
+
+  @@unique([studentId, managerId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String       @db.ObjectId
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  text           String
+  createdAt      DateTime     @default(now())
+
+  @@map("messages")
+}
+
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  action      String
+  performedBy String   @db.ObjectId
+  targetType  String
+  targetId    String   @db.ObjectId
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
