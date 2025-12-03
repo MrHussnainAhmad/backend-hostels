@@ -27,7 +27,11 @@ export class AuthService {
 
       if (data.role === 'STUDENT') {
         await tx.studentProfile.create({
-          data: { userId: user.id },
+          data: {
+            userId: user.id,
+            // Make sure your StudentProfile model has a `fullName` field
+            fullName: data.fullName?.trim() || undefined,
+          },
         });
       } else if (data.role === 'MANAGER') {
         await tx.managerProfile.create({
